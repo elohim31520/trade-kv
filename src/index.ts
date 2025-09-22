@@ -64,6 +64,127 @@ app.get('/market/momentum/range/1', async (c) => {
 	})
 })
 
+app.get('/stock/breadth', async (c) => {
+	const cacheKey = 'data:/stock/breadth'
+	const kv = c.env.URTRADE_KV
+
+	let apiResponse: string | null
+
+	const cachedData = await kv.get(cacheKey)
+
+	if (cachedData !== null) {
+		// 找到了 KV 快取，回傳並設定 Edge Cache
+		return c.text(cachedData, 200, {
+			'Cache-Control': `public, max-age=${CACHE_TTL}`,
+		})
+	}
+
+	// 2. 如果 KV 沒有快取，向原始 API 請求資料
+	try {
+		const originalApiUrl = `${c.env.API_HOST}/stock/breadth`
+		const response = await fetch(originalApiUrl)
+
+		if (!response.ok) {
+			throw new Error('Failed to fetch from original API.')
+		}
+
+		apiResponse = await response.text()
+	} catch (error: any) {
+		// 處理請求失敗
+		return c.text(`Error fetching data: ${error.message}`, 500)
+	}
+
+	// 3. 取得資料後，同時寫入 KV 和 Edge Cache
+	// 將資料寫入 KV，並設定過期時間
+	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 })
+
+	// 回傳資料並設定 Edge Cache 標頭
+	return c.text(apiResponse, 200, {
+		'Cache-Control': `public, max-age=${CACHE_TTL}`,
+	})
+})
+
+app.get('/stock/winners', async (c) => {
+	const cacheKey = 'data:/stock/winners'
+	const kv = c.env.URTRADE_KV
+
+	let apiResponse: string | null
+
+	const cachedData = await kv.get(cacheKey)
+
+	if (cachedData !== null) {
+		// 找到了 KV 快取，回傳並設定 Edge Cache
+		return c.text(cachedData, 200, {
+			'Cache-Control': `public, max-age=${CACHE_TTL}`,
+		})
+	}
+
+	// 2. 如果 KV 沒有快取，向原始 API 請求資料
+	try {
+		const originalApiUrl = `${c.env.API_HOST}/stock/winners`
+		const response = await fetch(originalApiUrl)
+
+		if (!response.ok) {
+			throw new Error('Failed to fetch from original API.')
+		}
+
+		apiResponse = await response.text()
+	} catch (error: any) {
+		// 處理請求失敗
+		return c.text(`Error fetching data: ${error.message}`, 500)
+	}
+
+	// 3. 取得資料後，同時寫入 KV 和 Edge Cache
+	// 將資料寫入 KV，並設定過期時間
+	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 })
+
+	// 回傳資料並設定 Edge Cache 標頭
+	return c.text(apiResponse, 200, {
+		'Cache-Control': `public, max-age=${CACHE_TTL}`,
+	})
+})
+
+app.get('/stock/losers', async (c) => {
+	const cacheKey = 'data:/stock/losers'
+	const kv = c.env.URTRADE_KV
+
+	let apiResponse: string | null
+
+	const cachedData = await kv.get(cacheKey)
+
+	if (cachedData !== null) {
+		// 找到了 KV 快取，回傳並設定 Edge Cache
+		return c.text(cachedData, 200, {
+			'Cache-Control': `public, max-age=${CACHE_TTL}`,
+		})
+	}
+
+	// 2. 如果 KV 沒有快取，向原始 API 請求資料
+	try {
+		const originalApiUrl = `${c.env.API_HOST}/stock/losers`
+		const response = await fetch(originalApiUrl)
+
+		if (!response.ok) {
+			throw new Error('Failed to fetch from original API.')
+		}
+
+		apiResponse = await response.text()
+	} catch (error: any) {
+		// 處理請求失敗
+		return c.text(`Error fetching data: ${error.message}`, 500)
+	}
+
+	// 3. 取得資料後，同時寫入 KV 和 Edge Cache
+	// 將資料寫入 KV，並設定過期時間
+	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 })
+
+	// 回傳資料並設定 Edge Cache 標頭
+	return c.text(apiResponse, 200, {
+		'Cache-Control': `public, max-age=${CACHE_TTL}`,
+	})
+})
+
+
 // 新增需要身份驗證的 API 端點
 app.get('/market/momentum/range/3', auth, (c) => getMomentumRangeData(c, 3))
 app.get('/market/momentum/range/7', auth, (c) => getMomentumRangeData(c, 7))

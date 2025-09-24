@@ -8,7 +8,7 @@ import type { Bindings } from '../types'
 export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings }>) => {
 
     // 定義一個快取過期時間（單位：秒）
-    const CACHE_TTL = 3600 * 24 
+    const CACHE_TTL = 3600 * 20
 
   // 從請求中獲取完整的 URL (包含路徑和查詢參數)，作為快取鍵
   const cacheKey = `data:${c.req.url}`;
@@ -42,7 +42,7 @@ export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings
 
   // 3. 取得資料後，同時寫入 KV 和 Edge Cache
   // 將資料寫入 KV，並設定過期時間
-  await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 });
+  await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 1.3 });
 
   // 回傳資料並設定 Edge Cache 標頭
   return c.text(apiResponse, 200, {

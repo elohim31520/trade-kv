@@ -3,7 +3,7 @@ import type { Bindings } from '../types'
 
 // Hono context with bindings
 type AppContext = Context<{ Bindings: Bindings }>
-const CACHE_TTL = 3600 * 3 // 3 小時
+const CACHE_TTL = 3600 * 20
 
 // 處理動能排行資料的通用函式 (需身份驗證)
 export const getMomentumRangeData = async (c: AppContext, range: number) => {
@@ -39,7 +39,7 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 	}
 
 	// 將資料存入 KV 並返回
-	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 })
+	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 1.3 })
 	return c.text(apiResponse, 200, {
 		'Cache-Control': `public, max-age=${CACHE_TTL}`,
 	})

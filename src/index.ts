@@ -23,10 +23,10 @@ app.use(
 );
 
 // 定義一個快取過期時間（單位：秒）
-const CACHE_TTL = 3600 * 3; // 3 小時
+const CACHE_TTL = 3600; // 3 小時
 
 // 建立一個處理快取邏輯的通用 Hono Handler
-const createCachedHandler = (endpoint: string) => {
+const createCachedHandler = (endpoint: string, hours: number) => {
   return async (c: Context<{ Bindings: Bindings }>) => {
     const cacheKey = `data:${endpoint}`;
     const kv = c.env.URTRADE_KV;
@@ -36,7 +36,7 @@ const createCachedHandler = (endpoint: string) => {
     if (cachedData !== null) {
       // 找到了 KV 快取，回傳並設定 Edge Cache
       return c.text(cachedData, 200, {
-        "Cache-Control": `public, max-age=${CACHE_TTL}`,
+        "Cache-Control": `public, max-age=${CACHE_TTL * hours}`,
       });
     }
 
@@ -58,23 +58,23 @@ const createCachedHandler = (endpoint: string) => {
 
     // 3. 取得資料後，同時寫入 KV 和 Edge Cache
     // 將資料寫入 KV，並設定過期時間
-    await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 2 });
+    await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * hours * 1.3 });
 
     // 回傳資料並設定 Edge Cache 標頭
     return c.text(apiResponse, 200, {
-      "Cache-Control": `public, max-age=${CACHE_TTL}`,
+      "Cache-Control": `public, max-age=${CACHE_TTL * hours}`,
     });
   };
 };
 
 app.get(
   "/market/momentum/range/1",
-  createCachedHandler("/market/momentum/range/1")
+  createCachedHandler("/market/momentum/range/1", 3)
 );
-app.get("/stock/breadth", createCachedHandler("/stock/breadth"));
-app.get("/stock/winners", createCachedHandler("/stock/winners"));
-app.get("/stock/losers", createCachedHandler("/stock/losers"));
-app.get("/stock/today", createCachedHandler("/stock/today"));
+app.get("/stock/breadth", createCachedHandler("/stock/breadth", 20));
+app.get("/stock/winners", createCachedHandler("/stock/winners", 20));
+app.get("/stock/losers", createCachedHandler("/stock/losers", 20));
+app.get("/stock/today", createCachedHandler("/stock/today", 20));
 app.get("/statements/tsla", createDynamicCachedHandler);
 app.get("/statements/nvda", createDynamicCachedHandler);
 app.get("/statements/aapl", createDynamicCachedHandler);

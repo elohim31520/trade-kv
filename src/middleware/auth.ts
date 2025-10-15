@@ -23,14 +23,20 @@ export const auth = async (c: AppContext, next: Next) => {
 		const authResponse = await fetch(authApiUrl, {
 			method: 'GET',
 			headers: {
-				Authorization: authHeader,
+				'Authorization': authHeader,
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
 			},
 		})
 
 		if (!authResponse.ok) {
 			// 如果 HTTP 狀態不是 2xx，直接視為失敗
 			return c.json(
-				{ error: '未授權', message: '驗證服務回應錯誤' },
+				{ 
+					success: false,
+					error: '未授權', 
+					message: '驗證服務回應錯誤',
+				},
 				authResponse.status as any
 			)
 		}

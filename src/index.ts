@@ -77,6 +77,8 @@ app.get("/stock/winners", createCachedHandler("/stock/winners", 20));
 app.get("/stock/losers", createCachedHandler("/stock/losers", 20));
 app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 app.get("/stock/today", createCachedHandler("/stock/today", 20));
+app.get("/market/quotes", createCachedHandler("/market/quotes", 2));
+
 app.get("/statements/tsla", createDynamicCachedHandler);
 app.get("/statements/nvda", createDynamicCachedHandler);
 app.get("/statements/aapl", createDynamicCachedHandler);

@@ -7,8 +7,13 @@ type AppContext = Context<{ Bindings: Bindings }>
 // 身份驗證中介軟體
 export const auth = async (c: AppContext, next: Next) => {
 	const authHeader = c.req.header('Authorization')
+
 	if (!authHeader) {
-		return c.json({ error: '未授權', message: '缺少 Authorization 標頭' }, 401)
+		return c.json({ 
+			success: false, 
+			error: '未授權', 
+			message: '缺少 Authorization 標頭' 
+		}, 401)
 	}
 
 	// 您的使用者登入狀態驗證 API

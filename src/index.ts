@@ -18,6 +18,7 @@ app.use(
       }
       return undefined; // or a default origin
     },
+    allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
@@ -74,6 +75,7 @@ app.get(
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", 20));
 app.get("/stock/winners", createCachedHandler("/stock/winners", 20));
 app.get("/stock/losers", createCachedHandler("/stock/losers", 20));
+app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 app.get("/stock/today", createCachedHandler("/stock/today", 20));
 app.get("/statements/tsla", createDynamicCachedHandler);
 app.get("/statements/nvda", createDynamicCachedHandler);

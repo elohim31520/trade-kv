@@ -73,8 +73,6 @@ app.get(
   createCachedHandler("/market/momentum/range/1", 3)
 );
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", 20));
-app.get("/stock/winners", createCachedHandler("/stock/winners", 20));
-app.get("/stock/losers", createCachedHandler("/stock/losers", 20));
 app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 app.get("/stock/today", createCachedHandler("/stock/today", 20));
 app.get("/market/quotes", createCachedHandler("/market/quotes", 2));

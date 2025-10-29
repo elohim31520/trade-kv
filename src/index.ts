@@ -77,14 +77,7 @@ app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 app.get("/stock/today", createCachedHandler("/stock/today", 20));
 app.get("/market/quotes", createCachedHandler("/market/quotes", 2));
 
-app.get("/statements/tsla", createDynamicCachedHandler);
-app.get("/statements/nvda", createDynamicCachedHandler);
-app.get("/statements/aapl", createDynamicCachedHandler);
-app.get("/statements/msft", createDynamicCachedHandler);
-app.get("/statements/meta", createDynamicCachedHandler);
-app.get("/statements/amzn", createDynamicCachedHandler);
-app.get("/statements/pltr", createDynamicCachedHandler);
-app.get("/statements/goog", createDynamicCachedHandler);
+app.get("/statements/:symbol", createDynamicCachedHandler);
 
 // 新增需要身份驗證的 API 端點
 app.get("/market/momentum/range/3", auth, (c) => getMomentumRangeData(c, 3));

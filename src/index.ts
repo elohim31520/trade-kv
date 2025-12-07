@@ -70,7 +70,7 @@ const createCachedHandler = (endpoint: string, hours: number) => {
 
 app.get(
   "/market/momentum/range/1",
-  createCachedHandler("/market/momentum/range/1", 3)
+  createCachedHandler("/market/momentum/range/1", 1)
 );
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", 20));
 app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));

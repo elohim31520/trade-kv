@@ -78,6 +78,14 @@ app.get("/stock/today", createCachedHandler("/stock/today", 20));
 app.get("/market/quotes", createCachedHandler("/market/quotes", 2));
 
 app.get("/statements/:symbol", createDynamicCachedHandler);
+app.get("/news", async (c) => {
+  const page = c.req.query("page");
+  const size = c.req.query("size");
+
+  if (page === "1" && size === "10") {
+    return createCachedHandler("/news?page=1&size=10", 1)(c);
+  }
+});
 
 // 新增需要身份驗證的 API 端點
 app.get("/market/momentum/range/3", auth, (c) => getMomentumRangeData(c, 3));

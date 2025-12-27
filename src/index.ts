@@ -75,7 +75,7 @@ app.get(
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", 20));
 app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 app.get("/stock/today", createCachedHandler("/stock/today", 20));
-app.get("/market/quotes", createCachedHandler("/market/quotes", 2));
+app.get("/market/quotes", createCachedHandler("/market/quotes", 1));
 
 app.get("/statements/:symbol", createDynamicCachedHandler);
 app.get("/news", async (c) => {

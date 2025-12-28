@@ -88,7 +88,7 @@ app.get("/news", async (c) => {
 });
 
 // 新增需要身份驗證的 API 端點
-app.get("/market/momentum/range/3", auth, (c) => getMomentumRangeData(c, 3));
+app.get("/market/momentum/range/3", (c) => getMomentumRangeData(c, 3)); //3天改成不需登入驗證
 app.get("/market/momentum/range/7", auth, (c) => getMomentumRangeData(c, 7));
 app.get("/market/momentum/range/30", auth, (c) => getMomentumRangeData(c, 30));
 

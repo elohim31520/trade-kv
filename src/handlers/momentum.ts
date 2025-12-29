@@ -1,9 +1,9 @@
 import { type Context } from 'hono'
 import type { Bindings } from '../types'
+import { getNextDailyUpdateTimestamp } from '../util'
 
 // Hono context with bindings
 type AppContext = Context<{ Bindings: Bindings }>
-const CACHE_TTL = 3600 * 20
 
 // 處理動能排行資料的通用函式 (需身份驗證)
 export const getMomentumRangeData = async (c: AppContext, range: number) => {
@@ -14,7 +14,7 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 	const cachedData = await kv.get(cacheKey)
 	if (cachedData) {
 		return c.text(cachedData, 200, {
-			'Cache-Control': `public, max-age=${CACHE_TTL}`,
+			 "Cache-Control": `public, max-age=3600`,
 		})
 	}
 
@@ -38,9 +38,21 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 		return c.text(`獲取資料時發生錯誤: ${error.message}`, 500)
 	}
 
-	// 將資料存入 KV 並返回
-	await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 1.3 })
-	return c.text(apiResponse, 200, {
-		'Cache-Control': `public, max-age=${CACHE_TTL}`,
-	})
+	 // 3. 計算過期設定
+	 let kvPutOptions: { expirationTtl?: number; expiration?: number } = {};
+	 let browserMaxAge: number;
+
+	// 固定模式：每天特定時間點過期 寫死UTC0點更新
+	const expireAt = getNextDailyUpdateTimestamp(0);
+	kvPutOptions.expiration = expireAt;
+	
+	// 計算現在距離過期點還剩多少秒，作為瀏覽器 Cache-Control
+	browserMaxAge = Math.max(0, expireAt - Math.floor(Date.now() / 1000));
+ 
+	 // 寫入 KV
+	 await kv.put(cacheKey, apiResponse, kvPutOptions);
+ 
+	 return c.text(apiResponse, 200, {
+	   "Cache-Control": `public, max-age=${browserMaxAge}`,
+	 });
 }

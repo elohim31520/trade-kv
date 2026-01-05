@@ -90,12 +90,12 @@ app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 // 假設台灣時間 08:00 (UTC 00:00) 更新，我們就把 KV 設在該時間點失效
 app.get("/stock/today", createCachedHandler("/stock/today", { 
   type: 'daily', 
-  utcHour: 0 
+  utcHour: 3
 }));
 
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", { 
   type: 'daily', 
-  utcHour: 0 
+  utcHour: 3 
 }));
 
 app.get("/market/quotes", createCachedHandler("/market/quotes", 1));

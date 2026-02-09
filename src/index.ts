@@ -23,7 +23,7 @@ app.use(
   })
 );
 
-type CacheOptions = 
+type CacheOptions =
   | number                     // 傳統的滾動小時數
   | { type: 'daily', utcHour: number }; // 固定每天幾點過期
 
@@ -64,7 +64,7 @@ const createCachedHandler = (endpoint: string, options: CacheOptions) => {
       // 固定模式：每天特定時間點過期
       const expireAt = getNextDailyUpdateTimestamp(options.utcHour);
       kvPutOptions.expiration = expireAt;
-      
+
       // 計算現在距離過期點還剩多少秒，作為瀏覽器 Cache-Control
       browserMaxAge = Math.max(0, expireAt - Math.floor(Date.now() / 1000));
     }
@@ -88,19 +88,19 @@ app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
 
 //每天固定時間更新：(適合每日收盤資料)
 // 假設台灣時間 08:00 (UTC 00:00) 更新，我們就把 KV 設在該時間點失效
-app.get("/stock/today", createCachedHandler("/stock/today", { 
-  type: 'daily', 
+app.get("/stock/today", createCachedHandler("/stock/today", {
+  type: 'daily',
   utcHour: 3
 }));
 
-app.get("/stock/breadth", createCachedHandler("/stock/breadth", { 
-  type: 'daily', 
-  utcHour: 3 
+app.get("/stock/breadth", createCachedHandler("/stock/breadth", {
+  type: 'daily',
+  utcHour: 3
 }));
 
 app.get("/market/quotes", createCachedHandler("/market/quotes", 1));
 
-app.get("/statements/:symbol", createDynamicCachedHandler);
+app.get("/company-metrics/:symbol", createDynamicCachedHandler);
 
 app.get("/news", async (c) => {
   const page = c.req.query("page");

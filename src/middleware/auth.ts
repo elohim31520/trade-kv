@@ -9,15 +9,15 @@ export const auth = async (c: AppContext, next: Next) => {
 	const authHeader = c.req.header('Authorization')
 
 	if (!authHeader) {
-		return c.json({ 
-			success: false, 
-			error: '未授權', 
-			message: '缺少 Authorization 標頭' 
+		return c.json({
+			success: false,
+			error: '未授權',
+			message: '缺少 Authorization 標頭'
 		}, 401)
 	}
 
 	// 您的使用者登入狀態驗證 API
-	const authApiUrl = `${c.env.API_HOST}/users/is-login`
+	const authApiUrl = `${c.env.API_HOST}/user/is-login`
 
 	try {
 		const authResponse = await fetch(authApiUrl, {
@@ -32,9 +32,9 @@ export const auth = async (c: AppContext, next: Next) => {
 		if (!authResponse.ok) {
 			// 如果 HTTP 狀態不是 2xx，直接視為失敗
 			return c.json(
-				{ 
+				{
 					success: false,
-					error: '未授權', 
+					error: '未授權',
 					message: '驗證服務回應錯誤',
 				},
 				authResponse.status as any

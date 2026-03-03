@@ -14,7 +14,8 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 	const cachedData = await kv.get(cacheKey)
 	if (cachedData) {
 		return c.text(cachedData, 200, {
-			 "Cache-Control": `public, max-age=3600`,
+			"Cache-Control": `public, max-age=3600`,
+			"X-Cache": "HIT-KV" // 方便除錯
 		})
 	}
 
@@ -25,7 +26,7 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 		const headers = new Headers()
 		const authHeader = c.req.header('Authorization')
 		if (authHeader) {
-			headers.append('Authorization', authHeader)
+			headers.append('authorization', authHeader)
 		}
 
 		const response = await fetch(originalApiUrl, { headers })
@@ -38,21 +39,24 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 		return c.text(`獲取資料時發生錯誤: ${error.message}`, 500)
 	}
 
-	 // 3. 計算過期設定
-	 let kvPutOptions: { expirationTtl?: number; expiration?: number } = {};
-	 let browserMaxAge: number;
+	// 3. 計算過期設定
+	let browserMaxAge: number;
 
 	// 固定模式：每天特定時間點過期 寫死UTC0點更新
 	const expireAt = getNextDailyUpdateTimestamp(0);
-	kvPutOptions.expiration = expireAt;
-	
+
 	// 計算現在距離過期點還剩多少秒，作為瀏覽器 Cache-Control
 	browserMaxAge = Math.max(0, expireAt - Math.floor(Date.now() / 1000));
- 
-	 // 寫入 KV
-	 await kv.put(cacheKey, apiResponse, kvPutOptions);
- 
-	 return c.text(apiResponse, 200, {
-	   "Cache-Control": `public, max-age=${browserMaxAge}`,
-	 });
+
+	// await kv.put(cacheKey, apiResponse, kvPutOptions);
+
+	// 【關鍵優化】：不要 await kv.put，直接放入後台執行
+	c.executionCtx.waitUntil(
+		kv.put(cacheKey, apiResponse, { expiration: expireAt })
+	);
+
+	return c.text(apiResponse, 200, {
+		"Cache-Control": `public, max-age=${browserMaxAge}`,
+		"X-Cache": "MISS"
+	});
 }

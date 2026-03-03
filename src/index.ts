@@ -4,115 +4,117 @@ import type { Bindings } from "./types";
 import { auth } from "./middleware/auth";
 import { getMomentumRangeData } from "./handlers/momentum";
 import { createDynamicCachedHandler } from "./handlers/metrics";
-import { getNextDailyUpdateTimestamp } from './util'
+import { getNextDailyUpdateTimestamp } from './util';
 
-// 將 Bindings 介面作為 Hono 應用程式的泛型參數
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use(
-  cors({
-    origin: (origin, c) => {
-      const allowedOrigins = c.env.ALLOWED_ORIGINS.split(",");
-      if (allowedOrigins.includes(origin)) {
-        return origin;
-      }
-      return undefined;
-    },
-    allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+// --- 類型定義 ---
+type DailyExpiration = { type: 'daily'; utcHour: number };
+type CacheOptions = {
+  expiration: number | DailyExpiration; // 數字代表小時，物件代表每日固定點
+};
 
-type CacheOptions =
-  | number                     // 傳統的滾動小時數
-  | { type: 'daily', utcHour: number }; // 固定每天幾點過期
-
+// --- 通用快取處理器 ---
 const createCachedHandler = (endpoint: string, options: CacheOptions) => {
   return async (c: Context<{ Bindings: Bindings }>) => {
-    const cacheKey = `data:${endpoint}`;
+    const url = new URL(c.req.url);
+    // 自動組合 path + query params 作為唯一 Key
+    // 如果 endpoint 已經帶有 query string，這裡要小心處理，通常建議傳入純路徑
+    const fullPath = endpoint.includes('?') ? endpoint : `${endpoint}${url.search}`;
+    const cacheKey = `data:cache:${fullPath}`;
     const kv = c.env.URTRADE_KV;
 
-    // 1. 檢查 KV 快取
+    // 1. 嘗試從 KV 讀取
     const cachedData = await kv.get(cacheKey);
     if (cachedData !== null) {
       return c.text(cachedData, 200, {
-        "Cache-Control": `public, max-age=3600`, // Edge/Browser 緩存可以設短一點，讓它頻繁回來看 KV
+        "Content-Type": "application/json; charset=UTF-8",
+        "Cache-Control": "public, max-age=3600",
+        "X-Cache": "HIT-KV"
       });
     }
 
-    // 2. 請求 API
-    let apiResponse: string;
+    // 2. 請求原始 API (不強制驗證，但如果有傳 Authorization 就會帶過去)
     try {
-      const originalApiUrl = `${c.env.API_HOST}${endpoint}`;
-      const response = await fetch(originalApiUrl);
-      if (!response.ok) throw new Error("Failed to fetch");
-      apiResponse = await response.text();
+      const originalApiUrl = `${c.env.API_HOST}${fullPath}`;
+      const headers = new Headers();
+      const authHeader = c.req.header('Authorization');
+      if (authHeader) headers.set('Authorization', authHeader);
+
+      const response = await fetch(originalApiUrl, { headers });
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+
+      const apiResponse = await response.text();
+
+      // 3. 計算過期設定
+      let kvPutOptions: { expiration?: number; expirationTtl?: number } = {};
+      let browserMaxAge: number;
+
+      if (typeof options.expiration === 'number') {
+        // 滾動小時模式
+        const ttlSeconds = options.expiration * 3600;
+        kvPutOptions.expirationTtl = Math.max(60, ttlSeconds); // KV 最小限制 60s
+        browserMaxAge = ttlSeconds;
+      } else {
+        // 每日固定點模式
+        const expireAt = getNextDailyUpdateTimestamp(options.expiration.utcHour);
+        kvPutOptions.expiration = expireAt;
+        browserMaxAge = Math.max(0, expireAt - Math.floor(Date.now() / 1000));
+      }
+
+      // 4. 背景寫入 KV
+      c.executionCtx.waitUntil(
+        kv.put(cacheKey, apiResponse, kvPutOptions)
+      );
+
+      return c.text(apiResponse, 200, {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Cache-Control": `public, max-age=${browserMaxAge}`,
+        "X-Cache": "MISS"
+      });
+
     } catch (error: any) {
-      return c.text(`Error: ${error.message}`, 500);
+      return c.text(`Backend Error: ${error.message}`, 502);
     }
-
-    // 3. 計算過期設定
-    let kvPutOptions: { expirationTtl?: number; expiration?: number } = {};
-    let browserMaxAge: number;
-
-    if (typeof options === 'number') {
-      // 傳統模式：滾動 TTL
-      const ttlSeconds = options * 3600;
-      kvPutOptions.expirationTtl = ttlSeconds * 1.3; // KV 存久一點點作為緩衝
-      browserMaxAge = ttlSeconds;
-    } else {
-      // 固定模式：每天特定時間點過期
-      const expireAt = getNextDailyUpdateTimestamp(options.utcHour);
-      kvPutOptions.expiration = expireAt;
-
-      // 計算現在距離過期點還剩多少秒，作為瀏覽器 Cache-Control
-      browserMaxAge = Math.max(0, expireAt - Math.floor(Date.now() / 1000));
-    }
-
-    // 寫入 KV
-    await kv.put(cacheKey, apiResponse, kvPutOptions);
-
-    return c.text(apiResponse, 200, {
-      "Cache-Control": `public, max-age=${browserMaxAge}`,
-    });
   };
 };
 
-// 滾動 1 小時 (適合更新頻繁的資料)
-app.get(
-  "/market/momentum/range/1",
-  createCachedHandler("/market/momentum/range/1", 1)
-);
-
-app.get("/stock/symbols", createCachedHandler("/stock/symbols", 720));
-
-//每天固定時間更新：(適合每日收盤資料)
-// 假設台灣時間 08:00 (UTC 00:00) 更新，我們就把 KV 設在該時間點失效
-app.get("/stock/today", createCachedHandler("/stock/today", {
-  type: 'daily',
-  utcHour: 3
+// --- 中介軟體 ---
+app.use(cors({
+  origin: (origin, c) => {
+    const allowed = c.env.ALLOWED_ORIGINS.split(",");
+    return allowed.includes(origin) ? origin : undefined;
+  },
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
-app.get("/stock/breadth", createCachedHandler("/stock/breadth", {
-  type: 'daily',
-  utcHour: 3
-}));
+// --- 路由設定 ---
 
-app.get("/market/quotes", createCachedHandler("/market/quotes", 1));
+// 1. 滾動時間快取 (小時)
+app.get("/market/momentum/range/1", createCachedHandler("/market/momentum/range/1", { expiration: 1 }));
+app.get("/market/quotes", createCachedHandler("/market/quotes", { expiration: 1 }));
+app.get("/stock/symbols", createCachedHandler("/stock/symbols", { expiration: 720 }));
 
+// 2. 每日固定時間快取 (UTC 03:00)
+const dailyStockOptions: CacheOptions = { expiration: { type: 'daily', utcHour: 3 } };
+app.get("/stock/today", createCachedHandler("/stock/today", dailyStockOptions));
+app.get("/stock/breadth", createCachedHandler("/stock/breadth", dailyStockOptions));
+
+// 3. 特殊邏輯路由
 app.get("/company-metrics/:symbol", createDynamicCachedHandler);
 
 app.get("/news", async (c) => {
   const page = c.req.query("page");
   const size = c.req.query("size");
-
+  // 僅快取第一頁新聞，過期時間 1 小時
   if (page === "1" && size === "10") {
-    return createCachedHandler("/news?page=1&size=10", 1)(c);
+    return createCachedHandler("/news", { expiration: 1 })(c);
   }
 });
 
-// 新增需要身份驗證的 API 端點
-app.get("/market/momentum/range/3", (c) => getMomentumRangeData(c, 3)); //3天改成不需登入驗證
+// 4. 動能排行系列 (3天不需驗證，其餘需要)
+app.get("/market/momentum/range/3", (c) => getMomentumRangeData(c, 3));
 app.get("/market/momentum/range/7", auth, (c) => getMomentumRangeData(c, 7));
 app.get("/market/momentum/range/30", auth, (c) => getMomentumRangeData(c, 30));
 

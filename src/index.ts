@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import type { Bindings } from "./types";
 import { auth } from "./middleware/auth";
 import { metricsAccess } from "./middleware/metricsAccess";
+import { knownSymbol } from "./middleware/knownSymbol";
 import { getMomentumRangeData } from "./handlers/momentum";
 import { createDynamicCachedHandler } from "./handlers/metrics";
 import { getNextDailyUpdateTimestamp } from './util';
@@ -103,8 +104,9 @@ app.get("/stock/today", createCachedHandler("/stock/today", dailyStockOptions));
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", dailyStockOptions));
 
 // 3. 特殊邏輯路由
-// 熱門公司公開，其餘公司要登入（Authorization 由 BFF 從 httpOnly cookie 帶入）
-app.get("/company-metrics/:symbol", metricsAccess, createDynamicCachedHandler);
+// 熱門公司公開，其餘公司要登入（Authorization 由 BFF 從 httpOnly cookie 帶入）；
+// 代號不在站上公司清單（/stock/symbols）的直接 404，不讀也不寫 KV
+app.get("/company-metrics/:symbol", metricsAccess, knownSymbol, createDynamicCachedHandler);
 
 app.get("/news", async (c) => {
   const page = c.req.query("page");

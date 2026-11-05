@@ -7,11 +7,11 @@ import { normalizeSymbol } from './util'
  */
 
 // /stock/symbols 由 createCachedHandler 寫進 KV 的 key（index.ts 的 createCachedHandler("/stock/symbols")，
-// 沒有 query string 時就是這個）。改 index.ts 那邊的路徑或 key 格式時，這裡要一起改。
+// key 只由路徑決定、不含 query string）。改 index.ts 那邊的路徑或 key 格式時，這裡要一起改。
 const SYMBOLS_CACHE_KEY = 'data:cache:/stock/symbols'
 
-// 與 index.ts 裡 /stock/symbols 的 expiration: 720（小時）一致
-const SYMBOLS_TTL_SECONDS = 720 * 3600
+// 與 index.ts 裡 /stock/symbols 的 expiration: 24（小時）一致
+const SYMBOLS_TTL_SECONDS = 24 * 3600
 
 // isolate 內的記憶體快取：同一個 isolate 的連續請求不用每次都讀 KV
 const MEMORY_TTL_MS = 10 * 60 * 1000

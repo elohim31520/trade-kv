@@ -6,7 +6,7 @@ import { metricsAccess } from "./middleware/metricsAccess";
 import { knownSymbol } from "./middleware/knownSymbol";
 import { getMomentumRangeData } from "./handlers/momentum";
 import { createDynamicCachedHandler } from "./handlers/metrics";
-import { getNextDailyUpdateTimestamp } from './util';
+import { getNextDailyUpdateTimestamp, hasPayload } from './util';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -17,13 +17,13 @@ type CacheOptions = {
 };
 
 // --- 通用快取處理器 ---
+// 快取 key 和上游網址都只由 endpoint 決定，請求自己帶的 query string 一律忽略：
+// 否則 ?a=1、?a=2 ... 每一個都會各打一次上游、各寫一份 KV。
+// 路由需要固定的 query 時，直接寫在 endpoint 裡（例如 /news?page=1&size=10）。
 const createCachedHandler = (endpoint: string, options: CacheOptions) => {
+  const cacheKey = `data:cache:${endpoint}`;
+
   return async (c: Context<{ Bindings: Bindings }>) => {
-    const url = new URL(c.req.url);
-    // 自動組合 path + query params 作為唯一 Key
-    // 如果 endpoint 已經帶有 query string，這裡要小心處理，通常建議傳入純路徑
-    const fullPath = endpoint.includes('?') ? endpoint : `${endpoint}${url.search}`;
-    const cacheKey = `data:cache:${fullPath}`;
     const kv = c.env.URTRADE_KV;
 
     // 1. 嘗試從 KV 讀取
@@ -38,7 +38,7 @@ const createCachedHandler = (endpoint: string, options: CacheOptions) => {
 
     // 2. 請求原始 API (不強制驗證，但如果有傳 Authorization 就會帶過去)
     try {
-      const originalApiUrl = `${c.env.API_HOST}${fullPath}`;
+      const originalApiUrl = `${c.env.API_HOST}${endpoint}`;
       const headers = new Headers();
       const authHeader = c.req.header('Authorization');
       if (authHeader) headers.set('Authorization', authHeader);
@@ -47,6 +47,15 @@ const createCachedHandler = (endpoint: string, options: CacheOptions) => {
       if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
 
       const apiResponse = await response.text();
+
+      // 上游回 200 但其實沒資料：照實回給呼叫端，但不寫 KV、也不讓瀏覽器快取
+      if (!hasPayload(apiResponse)) {
+        return c.text(apiResponse, 200, {
+          "Content-Type": "application/json; charset=UTF-8",
+          "Cache-Control": "no-store",
+          "X-Cache": "BYPASS-EMPTY"
+        });
+      }
 
       // 3. 計算過期設定
       let kvPutOptions: { expiration?: number; expirationTtl?: number } = {};
@@ -96,7 +105,8 @@ app.use(cors({
 // 1. 滾動時間快取 (小時)
 app.get("/market/momentum/range/1", createCachedHandler("/market/momentum/range/1", { expiration: 1 }));
 app.get("/market/quotes", createCachedHandler("/market/quotes", { expiration: 1 }));
-app.get("/stock/symbols", createCachedHandler("/stock/symbols", { expiration: 720 }));
+// 改這裡的 expiration 時，src/symbols.ts 的 SYMBOLS_TTL_SECONDS 要一起改
+app.get("/stock/symbols", createCachedHandler("/stock/symbols", { expiration: 24 }));
 
 // 2. 每日固定時間快取 (UTC 03:00)
 const dailyStockOptions: CacheOptions = { expiration: { type: 'daily', utcHour: 3 } };
@@ -108,13 +118,17 @@ app.get("/stock/breadth", createCachedHandler("/stock/breadth", dailyStockOption
 // 代號不在站上公司清單（/stock/symbols）的直接 404，不讀也不寫 KV
 app.get("/company-metrics/:symbol", metricsAccess, knownSymbol, createDynamicCachedHandler);
 
+// 只提供第一頁新聞（過期時間 1 小時）；其他頁前端直接走原始 API，不經過這裡。
+// key 和上游網址固定是 /news?page=1&size=10，額外帶的 query 一律忽略，不會多寫 KV。
+const newsFirstPage = createCachedHandler("/news?page=1&size=10", { expiration: 1 });
 app.get("/news", async (c) => {
-  const page = c.req.query("page");
-  const size = c.req.query("size");
-  // 僅快取第一頁新聞，過期時間 1 小時
-  if (page === "1" && size === "10") {
-    return createCachedHandler("/news", { expiration: 1 })(c);
+  if (c.req.query("page") === "1" && c.req.query("size") === "10") {
+    return newsFirstPage(c);
   }
+  return c.json(
+    { success: false, error: "不支援的參數", message: "此端點只提供第一頁新聞（page=1&size=10）" },
+    400
+  );
 });
 
 // 4. 動能排行系列 (3天不需驗證，其餘需要)

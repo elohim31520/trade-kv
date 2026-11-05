@@ -1,6 +1,6 @@
 import { type Context } from 'hono'
 import type { Bindings } from '../types'
-import { getNextDailyUpdateTimestamp } from '../util'
+import { getNextDailyUpdateTimestamp, hasPayload } from '../util'
 
 // Hono context with bindings
 type AppContext = Context<{ Bindings: Bindings }>
@@ -11,6 +11,7 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 	const kv = c.env.URTRADE_KV
 
 	// 驗證已通過，檢查 KV 快取
+	// 空字串也當作沒快取（舊版可能寫進過空資料）；現在沒資料的回應不會再寫進 KV
 	const cachedData = await kv.get(cacheKey)
 	if (cachedData) {
 		return c.text(cachedData, 200, {
@@ -37,6 +38,14 @@ export const getMomentumRangeData = async (c: AppContext, range: number) => {
 		apiResponse = await response.text()
 	} catch (error: any) {
 		return c.text(`獲取資料時發生錯誤: ${error.message}`, 500)
+	}
+
+	// 上游回 200 但其實沒資料：照實回給呼叫端，但不寫 KV、也不讓瀏覽器快取
+	if (!hasPayload(apiResponse)) {
+		return c.text(apiResponse, 200, {
+			"Cache-Control": "no-store",
+			"X-Cache": "BYPASS-EMPTY"
+		})
 	}
 
 	// 3. 計算過期設定

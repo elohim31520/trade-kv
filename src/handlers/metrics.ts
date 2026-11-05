@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono'
 import type { Bindings } from '../types'
 import { isHotCompany } from '../constants/hotCompanies'
-import { normalizeSymbol } from '../util'
+import { hasPayload, normalizeSymbol } from '../util'
 
 /**
  * 處理快取邏輯的通用 Hono Handler。
@@ -49,9 +49,18 @@ export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings
     return c.text(`Error fetching data: ${error.message}`, 500);
   }
 
-  // 3. 取得資料後，同時寫入 KV 和 Edge Cache
-  // 將資料寫入 KV，並設定過期時間
-  await kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 1.3 });
+  // 上游回 200 但其實沒資料：照實回給呼叫端，但不寫 KV、也不讓瀏覽器／CDN 存下來
+  if (!hasPayload(apiResponse)) {
+    return c.text(apiResponse, 200, {
+      'Cache-Control': 'no-store',
+    });
+  }
+
+  // 3. 取得資料後寫入 KV，並設定過期時間
+  // 放背景寫入、不 await：KV 寫入失敗或被限流時，不要讓已經拿到資料的請求跟著變 500
+  c.executionCtx.waitUntil(
+    kv.put(cacheKey, apiResponse, { expirationTtl: CACHE_TTL * 1.3 })
+  );
 
   // 回傳資料並設定 Edge Cache 標頭
   return c.text(apiResponse, 200, {

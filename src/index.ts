@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import type { Bindings } from "./types";
 import { auth } from "./middleware/auth";
+import { metricsAccess } from "./middleware/metricsAccess";
 import { getMomentumRangeData } from "./handlers/momentum";
 import { createDynamicCachedHandler } from "./handlers/metrics";
 import { getNextDailyUpdateTimestamp } from './util';
@@ -102,7 +103,8 @@ app.get("/stock/today", createCachedHandler("/stock/today", dailyStockOptions));
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", dailyStockOptions));
 
 // 3. 特殊邏輯路由
-app.get("/company-metrics/:symbol", createDynamicCachedHandler);
+// 熱門公司公開，其餘公司要登入（Authorization 由 BFF 從 httpOnly cookie 帶入）
+app.get("/company-metrics/:symbol", metricsAccess, createDynamicCachedHandler);
 
 app.get("/news", async (c) => {
   const page = c.req.query("page");

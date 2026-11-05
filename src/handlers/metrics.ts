@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono'
 import type { Bindings } from '../types'
+import { isHotCompany } from '../constants/hotCompanies'
 
 /**
  * 處理快取邏輯的通用 Hono Handler。
@@ -10,6 +11,10 @@ export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings
     // 定義一個快取過期時間（單位：秒）
     const CACHE_TTL = 3600 * 20
 
+  // 熱門公司是公開資料，可讓瀏覽器／CDN 共用快取；
+  // 其餘公司要登入才拿得到，用 private 避免被共用快取存下來發給沒登入的人
+  const cacheScope = isHotCompany(c.req.param('symbol')) ? 'public' : 'private';
+
   // 從請求中獲取完整的 URL (包含路徑和查詢參數)，作為快取鍵
   const cacheKey = `data:${c.req.url}`;
   const kv = c.env.URTRADE_KV;
@@ -19,7 +24,7 @@ export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings
   if (cachedData !== null) {
     // 找到了 KV 快取，回傳並設定 Edge Cache
     return c.text(cachedData, 200, {
-      'Cache-Control': `public, max-age=${CACHE_TTL}`,
+      'Cache-Control': `${cacheScope}, max-age=${CACHE_TTL}`,
     });
   }
 
@@ -46,6 +51,6 @@ export const createDynamicCachedHandler = async (c: Context<{ Bindings: Bindings
 
   // 回傳資料並設定 Edge Cache 標頭
   return c.text(apiResponse, 200, {
-    'Cache-Control': `public, max-age=${CACHE_TTL}`,
+    'Cache-Control': `${cacheScope}, max-age=${CACHE_TTL}`,
   });
 };

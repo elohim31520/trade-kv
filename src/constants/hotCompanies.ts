@@ -6,9 +6,9 @@
  *    兩邊的名單不一致會讓熱門公司被擋，或讓非熱門公司沒擋到。
  */
 export const HOT_COMPANIES: ReadonlySet<string> = new Set([
-	'SPCX', 'SNDK', 'MU', 'COHR', 'LITE', 'TSM', 'AMD', 'MSTR', 'HOOD', 'VST',
-	'APP', 'SOFI', 'AVGO', 'CRWV', 'OKLO', 'TSLA', 'NVDA', 'PLTR', 'AMZN', 'GOOG',
-	'META', 'MSFT', 'AAPL',
+	'SPCX', 'SNDK', 'MU', 'COHR', 'LITE', 'TSM', 'AMD', 'AVGO', 'INTC', 'MRVL',
+	'STX', 'GEV', 'LLY', 'TSLA', 'NVDA', 'PLTR', 'AMZN', 'GOOG', 'META', 'MSFT',
+	'AAPL',
 ])
 
 export const isHotCompany = (symbol: string | undefined): boolean =>

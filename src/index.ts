@@ -108,8 +108,11 @@ app.get("/market/quotes", createCachedHandler("/market/quotes", { expiration: 1 
 // 改這裡的 expiration 時，src/symbols.ts 的 SYMBOLS_TTL_SECONDS 要一起改
 app.get("/stock/symbols", createCachedHandler("/stock/symbols", { expiration: 24 }));
 
-// 2. 每日固定時間快取 (UTC 03:00)
-const dailyStockOptions: CacheOptions = { expiration: { type: 'daily', utcHour: 3 } };
+// 2. 每日固定時間快取 (UTC 23:00 = 台北 07:00)
+// 必須晚於後端股價爬蟲結束的時間：後端爬蟲台北 06:00 開始（cron: 0 6 * * 2-6），爬完會清掉後端 Redis 快取。
+// 過期點若落在爬蟲還在跑的時候，會向後端要到只爬一半的名單，並快取一整天。
+// 之後公司數增加、爬蟲耗時變長時，這裡要同步往後調（例如 utcHour: 0 = 台北 08:00）
+const dailyStockOptions: CacheOptions = { expiration: { type: 'daily', utcHour: 23 } };
 app.get("/stock/today", createCachedHandler("/stock/today", dailyStockOptions));
 app.get("/stock/breadth", createCachedHandler("/stock/breadth", dailyStockOptions));
 
